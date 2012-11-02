@@ -34,19 +34,26 @@ class Project < ActiveRecord::Base
   validates :description, length: { within: 0..2000 }
   validates :name, uniqueness: true, presence: true, length: { within: 0..255 }
   validates :path, uniqueness: true, presence: true, length: { within: 0..255 },
-            format: { with: /\A[a-zA-Z][a-zA-Z0-9_\-\.]*\z/,
-                      message: "only letters, digits & '_' '-' '.' allowed. Letter should be first" }
+            format: { with: /\A[a-zA-Z][a-zA-Z0-9]*\z/,
+                      message: "only letters, digits allowed. Letter should be first" }
   validates :code, presence: true, uniqueness: true, length: { within: 1..255 },
             format: { with: /\A[a-zA-Z][a-zA-Z0-9_\-\.]*\z/,
                       message: "only letters, digits & '_' '-' '.' allowed. Letter should be first" }
   validates :issues_enabled, :wall_enabled, :merge_requests_enabled,
             :wiki_enabled, inclusion: { in: [true, false] }
   validate :check_limit, :repo_name
+  validate :path_format
 
   # Scopes
   scope :public_only, where(private_flag: false)
   scope :without_user, ->(user)  { where("id NOT IN (:ids)", ids: user.projects.map(&:id) ) }
   scope :not_in_group, ->(group) { where("id NOT IN (:ids)", ids: group.project_ids ) }
+
+  def path_format
+    zakazana_slova = path =~ /\A(mysql|mysqld|4devops|gitlab|default|git|gitolite|hash|root|git2hash|ant|test)\z/
+    all_valid_characters = path =~ /\A[a-zA-Z][a-zA-Z0-9]+\z/
+    errors.add(:username, "only letters, digits, and no keywords") unless (not zakazana_slova and all_valid_characters)
+  end
 
   class << self
     def active
@@ -104,10 +111,8 @@ class Project < ActiveRecord::Base
   end
 
   def repo_name
-    denied_paths = %w(gitolite-admin groups projects dashboard)
-
-    if denied_paths.include?(path)
-      errors.add(:path, "like #{path} is not allowed")
+    if path == "gitolite-admin"
+      errors.add(:path, " like 'gitolite-admin' is not allowed")
     end
   end
 
